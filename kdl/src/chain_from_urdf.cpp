@@ -1,3 +1,19 @@
+/**
+ * @file chain_from_urdf.cpp
+ * @brief 从 URDF 构建运动学树并提取运动链，附带零位姿下的正运动学验证
+ *
+ * 用法: chain_from_urdf [urdf_file] [root_link] [tip_link]
+ *   urdf_file  URDF 文件路径（默认 ../model/robotic_arm.urdf）
+ *   root_link  根连杆名（默认 base_link）
+ *   tip_link   末端连杆名（默认 link6）
+ *
+ * @par 示例
+ * @code
+ *   ./chain_from_urdf
+ *   ./chain_from_urdf ../model/robotic_arm.urdf base_link link6
+ * @endcode
+ */
+
 #include <iostream>
 #include <string>
 
@@ -8,6 +24,12 @@
 
 #include "kdl_utils.hpp"
 
+/**
+ * @brief 程序入口：解析 URDF -> 打印树根 -> 提取 root->tip 运动链 -> 零位姿正解验证
+ * @param[in] argc 命令行参数个数
+ * @param[in] argv 命令行参数数组，argv[1..3] 依次为 urdf 文件、根连杆、末端连杆
+ * @return 0 表示建链与正解验证均成功；1 表示 URDF 解析失败、取链失败或正解失败
+ */
 int main(int argc, char** argv)
 {
 #ifndef DEFAULT_URDF_FILE

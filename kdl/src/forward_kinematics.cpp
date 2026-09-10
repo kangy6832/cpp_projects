@@ -1,15 +1,21 @@
-// 机械臂正向运动学（FK）：给定关节角，求末端位姿
-//
-// 用法: forward_kinematics [选项] [q1 q2 ... qN]
-//   --urdf <file>   URDF 文件（默认 model/robotic_arm.urdf）
-//   --root <link>   根连杆（默认 base_link）
-//   --tip  <link>   末端连杆（默认 link6）
-//   --deg           关节角输入单位为度（默认弧度）
-//   --all           同时输出每个连杆的中间位姿
-//   -h, --help      显示帮助
-//
-// 例: ./forward_kinematics --deg 0 -30 60 0 45 0
-//     ./forward_kinematics --root base_link --tip link3 0.1 0.2 0.3
+/**
+ * @file forward_kinematics.cpp
+ * @brief 机械臂正向运动学（FK）：给定关节角，求末端位姿
+ *
+ * 用法: forward_kinematics [选项] [q1 q2 ... qN]
+ *   --urdf <file>   URDF 文件（默认 model/robotic_arm.urdf）
+ *   --root <link>   根连杆（默认 base_link）
+ *   --tip  <link>   末端连杆（默认 link6）
+ *   --deg           关节角输入单位为度（默认弧度）
+ *   --all           同时输出每个连杆的中间位姿
+ *   -h, --help      显示帮助
+ *
+ * @par 示例
+ * @code
+ *   ./forward_kinematics --deg 0 -30 60 0 45 0
+ *   ./forward_kinematics --root base_link --tip link3 0.1 0.2 0.3
+ * @endcode
+ */
 
 #include <cctype>
 #include <cmath>
@@ -32,16 +38,23 @@
 
 namespace {
 
+/**
+ * @brief 命令行选项与关节角输入的集合
+ */
 struct Options
 {
-    std::string urdf_file = DEFAULT_URDF_FILE;
-    std::string root_link = "base_link";
-    std::string tip_link = "link6";
-    bool degrees = false;
-    bool all_frames = false;
-    std::vector<double> q;
+    std::string urdf_file = DEFAULT_URDF_FILE;  ///< URDF 文件路径
+    std::string root_link = "base_link";        ///< 根连杆名
+    std::string tip_link = "link6";             ///< 末端连杆名
+    bool degrees = false;                       ///< 输入的关节角是否为角度制
+    bool all_frames = false;                    ///< 是否输出每个连杆的中间位姿
+    std::vector<double> q;                      ///< 输入的关节角，不足的按 0 补齐
 };
 
+/**
+ * @brief 打印命令行用法说明
+ * @param[in] prog 程序名（通常为 argv[0]）
+ */
 void printUsage(const char* prog)
 {
     std::cout
@@ -58,7 +71,14 @@ void printUsage(const char* prog)
         << "  " << prog << " 0.1 0.2 0.3           # 不足的关节按 0 补齐\n";
 }
 
-// 解析命令行，失败返回 false
+/**
+ * @brief 解析命令行参数
+ * @param[in]  argc 命令行参数个数
+ * @param[in]  argv 命令行参数数组
+ * @param[out] opt  解析得到的选项，其中 q 按出现顺序收集所有数值参数
+ * @return 解析成功返回 true；缺少参数值、无法解析为数值或遇到未知选项时返回 false
+ * @note 遇到 -h/--help 会打印用法后直接 std::exit(0)
+ */
 bool parseArgs(int argc, char** argv, Options& opt)
 {
     for (int i = 1; i < argc; ++i) {
@@ -104,6 +124,12 @@ bool parseArgs(int argc, char** argv, Options& opt)
 
 }  // namespace
 
+/**
+ * @brief 程序入口：解析参数 -> 构建运动链 -> 正解求解 -> 逐段累乘自检
+ * @param[in] argc 命令行参数个数
+ * @param[in] argv 命令行参数数组
+ * @return 0 表示求解并输出成功；1 表示参数错误、建模失败或正解失败
+ */
 int main(int argc, char** argv)
 {
     Options opt;

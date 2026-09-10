@@ -1,23 +1,29 @@
-// 机械臂逆向运动学（IK）示例：给定末端目标位姿，求关节角
-//
-// 用法: inverse_kinematics --xyz x y z [--rpy r p y | --quat x y z w] [选项]
-//   --xyz x y z          目标位置（单位 m），也可用位置参数 "x y z [r p y]" 给出
-//   --rpy  r p y         目标姿态（RPY，默认 0 0 0）
-//   --quat x y z w       目标姿态（四元数，与 --rpy 二选一）
-//   --deg                --rpy / --q0 的单位为度
-//   --q0   a b c ...     迭代初值（默认全 0）
-//   --urdf <file>        URDF 文件（默认 model/robotic_arm.urdf）
-//   --root <link>        根连杆（默认 base_link）
-//   --tip  <link>        末端连杆（默认 link6）
-//   --solver nr|nr_jl|lma 求解器，默认 nr（nr_jl 带关节限位，lma 为列文伯格-马夸尔特）
-//   --maxiter N          最大迭代次数（默认 500）
-//   --eps   E            收敛阈值（默认 1e-6）
-//   --tries N            失败时在限位内随机重启的次数（默认 20）
-//   --seed  N            随机初值种子（默认 1，保证可复现）
-//   -h, --help           显示帮助
-//
-// 例: ./inverse_kinematics --xyz 0.9 -0.04 0.53 --rpy 0.8 1.51 3.14
-//     ./inverse_kinematics 0.9 -0.04 0.53 --deg --solver nr_jl
+/**
+ * @file inverse_kinematics.cpp
+ * @brief 机械臂逆向运动学（IK）示例：给定末端目标位姿，求关节角
+ *
+ * 用法: inverse_kinematics --xyz x y z [--rpy r p y | --quat x y z w] [选项]
+ *   --xyz x y z          目标位置（单位 m），也可用位置参数 "x y z [r p y]" 给出
+ *   --rpy  r p y         目标姿态（RPY，默认 0 0 0）
+ *   --quat x y z w       目标姿态（四元数，与 --rpy 二选一）
+ *   --deg                --rpy / --q0 的单位为度
+ *   --q0   a b c ...     迭代初值（默认全 0）
+ *   --urdf <file>        URDF 文件（默认 model/robotic_arm.urdf）
+ *   --root <link>        根连杆（默认 base_link）
+ *   --tip  <link>        末端连杆（默认 link6）
+ *   --solver nr|nr_jl|lma 求解器，默认 nr（nr_jl 带关节限位，lma 为列文伯格-马夸尔特）
+ *   --maxiter N          最大迭代次数（默认 500）
+ *   --eps   E            收敛阈值（默认 1e-6）
+ *   --tries N            失败时在限位内随机重启的次数（默认 20）
+ *   --seed  N            随机初值种子（默认 1，保证可复现）
+ *   -h, --help           显示帮助
+ *
+ * @par 示例
+ * @code
+ *   ./inverse_kinematics --xyz 0.9 -0.04 0.53 --rpy 0.8 1.51 3.14
+ *   ./inverse_kinematics 0.9 -0.04 0.53 --deg --solver nr_jl
+ * @endcode
+ */
 
 #include <algorithm>
 #include <cctype>
@@ -47,25 +53,33 @@
 
 namespace {
 
+/// 弧度转角度的换算系数
 constexpr double kRad2Deg = 180.0 / M_PI;
 
+/**
+ * @brief 命令行选项与目标的集合
+ */
 struct Options
 {
-    std::string urdf_file = DEFAULT_URDF_FILE;
-    std::string root_link = "base_link";
-    std::string tip_link = "link6";
-    std::string solver = "nr_jl";
-    bool degrees = false;
-    unsigned int maxiter = 500;
-    double eps = 1e-6;
-    unsigned int tries = 20;
-    unsigned int seed = 1;
-    std::vector<double> xyz;
-    std::vector<double> rpy;
-    std::vector<double> quat;
-    std::vector<double> q0;
+    std::string urdf_file = DEFAULT_URDF_FILE;  ///< URDF 文件路径
+    std::string root_link = "base_link";        ///< 根连杆名
+    std::string tip_link = "link6";             ///< 末端连杆名
+    std::string solver = "nr_jl";               ///< 求解器名称：nr / nr_jl / lma
+    bool degrees = false;                       ///< --rpy 与 --q0 是否使用角度制
+    unsigned int maxiter = 500;                 ///< 最大迭代次数
+    double eps = 1e-6;                          ///< 收敛阈值
+    unsigned int tries = 20;                    ///< 失败后的随机重启次数
+    unsigned int seed = 1;                      ///< 随机初值种子
+    std::vector<double> xyz;                    ///< 目标位置 (x, y, z)，单位 m
+    std::vector<double> rpy;                    ///< 目标姿态 RPY，与 quat 二选一
+    std::vector<double> quat;                   ///< 目标姿态四元数 (x, y, z, w)
+    std::vector<double> q0;                     ///< 迭代初值，不足补 0
 };
 
+/**
+ * @brief 打印命令行用法说明
+ * @param[in] prog 程序名（通常为 argv[0]）
+ */
 void printUsage(const char* prog)
 {
     std::cout
@@ -89,6 +103,12 @@ void printUsage(const char* prog)
         << "  " << prog << " 0.9 -0.04 0.53 --deg --solver nr_jl\n";
 }
 
+/**
+ * @brief 判断一个命令行 token 是否"看起来像数值"
+ * @param[in] s 待判断的字符串
+ * @return 以数字或小数点开头（可带正负号）时返回 true
+ * @note 只做首字符的启发式判断，真正的转换由 std::stod 负责
+ */
 bool isNumberToken(const std::string& s)
 {
     if (s.empty()) return false;
@@ -97,9 +117,24 @@ bool isNumberToken(const std::string& s)
     return std::isdigit(static_cast<unsigned char>(s[pos])) || s[pos] == '.';
 }
 
+/**
+ * @brief 按需把角度值转换为弧度
+ * @param[in] v       输入值
+ * @param[in] degrees 为 true 时输入视为角度，否则视为弧度
+ * @return 转换后的弧度值
+ */
 double toRad(double v, bool degrees) { return degrees ? v * M_PI / 180.0 : v; }
 
-// 读取固定个数的数值参数
+/**
+ * @brief 读取固定个数的数值参数
+ * @param[in]  argc  命令行参数个数
+ * @param[in]  argv  命令行参数数组
+ * @param[in,out] i  当前参数下标，成功时前进到最后一个被消费的位置
+ * @param[in]  opt   选项名，仅用于错误提示
+ * @param[out] out   读到的数值（先清空再填充）
+ * @param[in]  count 需要读取的数值个数
+ * @return 成功读到 count 个数值返回 true；个数不足或不是数值返回 false
+ */
 bool takeValues(int argc, char** argv, int& i, const std::string& opt,
                 std::vector<double>& out, size_t count)
 {
@@ -114,6 +149,14 @@ bool takeValues(int argc, char** argv, int& i, const std::string& opt,
     return true;
 }
 
+/**
+ * @brief 解析命令行参数并做合法性校验
+ * @param[in]  argc 命令行参数个数
+ * @param[in]  argv 命令行参数数组
+ * @param[out] opt  解析得到的选项
+ * @return 解析且校验通过返回 true；否则返回 false
+ * @note 遇到 -h/--help 会打印用法后直接 std::exit(0)
+ */
 bool parseArgs(int argc, char** argv, Options& opt)
 {
     std::vector<double> positional;
@@ -196,7 +239,11 @@ bool parseArgs(int argc, char** argv, Options& opt)
     return true;
 }
 
-// 角度归一化到 (-pi, pi]
+/**
+ * @brief 把角度归一化到 (-pi, pi]
+ * @param[in] a 任意大小的角度（弧度）
+ * @return 落在 (-pi, pi] 内的等价角度
+ */
 double wrapAngle(double a)
 {
     while (a > M_PI) a -= 2.0 * M_PI;
@@ -204,7 +251,12 @@ double wrapAngle(double a)
     return a;
 }
 
-// 把转动关节的解折算到 (-pi, pi]，不改变末端位姿，仅让输出更直观
+/**
+ * @brief 把转动关节的解折算到 (-pi, pi]，不改变末端位姿，仅让输出更直观
+ * @param[in]     chain 运动链，用于判断每个关节的类型
+ * @param[in,out] q     关节角，其中转动关节会被就地归一化
+ * @note 移动关节（TransAxis / TransX / TransY / TransZ）不参与归一化
+ */
 void normalizeRevolute(const KDL::Chain& chain, KDL::JntArray& q)
 {
     unsigned int j = 0;
@@ -222,6 +274,13 @@ void normalizeRevolute(const KDL::Chain& chain, KDL::JntArray& q)
 
 }  // namespace
 
+/**
+ * @brief 程序入口：解析参数 -> 构建运动链 -> 逆解 -> 正解回代验证
+ * @param[in] argc 命令行参数个数
+ * @param[in] argv 命令行参数数组
+ * @return 0 表示求解成功且回代误差在容差内（位置 < 1 mm 且姿态 < 1 mrad）；
+ *         1 表示参数错误、建模失败、求解失败或误差超差
+ */
 int main(int argc, char** argv)
 {
     Options opt;
