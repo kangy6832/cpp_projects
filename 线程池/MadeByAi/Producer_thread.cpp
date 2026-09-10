@@ -42,7 +42,7 @@ using namespace std::chrono_literals;
 // 若将来需要更快的停止响应，可改用上面说的解法三。
 namespace {
 constexpr auto kPushSlice = 50ms;
-}
+} // 匿名命名空间，定义只在本 .cpp 文件可见的常量（constexpr）
 
 Producer_thread::Producer_thread(Queue& queue, Generator gen, std::string name)
     : queue_(queue), gen_(std::move(gen)), name_(std::move(name)) {}
@@ -120,7 +120,7 @@ void Producer_thread::run() {
         // ---- 第 1 步：从数据源取一个任务 ----
         std::optional<Task> task;
         try {
-            task = gen_();
+            task = gen_();  // 调用数据源函数，取一个任务
 
             // 【设计要点】这一行在【锁外】执行，非常重要。
             // gen_() 是用户代码，可能读文件、查数据库、等网络，

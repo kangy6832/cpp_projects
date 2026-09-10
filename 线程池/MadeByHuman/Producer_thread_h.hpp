@@ -49,7 +49,7 @@ private:
     Generator gen_;
     std::string name_;
 
-}
+};
 
 
 #endif // PRODUCER_THREAD_H

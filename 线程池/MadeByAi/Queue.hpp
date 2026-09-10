@@ -74,12 +74,12 @@ enum class PushResult { Ok, Closed, Timeout };
 //   3. 队列满时 push 阻塞、队列空时 pop 阻塞，两端都靠条件变量唤醒
 class Queue {
 public:
-    using Task = std::function<void()>;
+    using Task = std::function<void()>;  // 任务
     using value_type = Task;   // 提供 value_type，让使用方可以写出与容器泛型兼容的代码
 
     // 【作用】创建队列并指定容量上限。
     // 【参数】capacity == 0 表示无界（不做背压）；> 0 时队列满会阻塞生产者。
-    explicit Queue(std::size_t capacity = 0);
+    explicit Queue(std::size_t capacity = 0);  // explicit 避免隐式类型转换，防止写成 Queue q = 8; 这种奇怪的代码
 
     // 【作用】禁止拷贝本队列（两行分别禁止"拷贝构造"和"拷贝赋值"）。
     // 【踩坑】含 mutex / condition_variable 的类必须禁拷贝，
@@ -142,7 +142,7 @@ private:
 
     // ---------------- 成员变量 ----------------
 
-    mutable std::mutex mtx_;
+    mutable std::mutex mtx_;  // mutable 允许变量在 const 成员函数里被修改（加锁），这是并发代码里常见的做法。
 
     // 【设计要点·核心】为什么需要【两个】条件变量？
     //   初学者的直觉是"一个条件变量够了"，但那会导致唤醒错位：
@@ -156,7 +156,7 @@ private:
     std::condition_variable not_full_;    // 等待条件：队列有空位（生产者等它）
     std::condition_variable not_empty_;   // 等待条件：队列有任务（消费者等它）
 
-    std::deque<Task> tasks_;
-    std::size_t capacity_;
+    std::deque<Task> tasks_;  // 任务缓冲区，双端队列，头出尾入，FIFO
+    std::size_t capacity_;  // 队列容量上限（0 表示无界），构造后不再修改，无需加锁
     bool closed_ = false;   // 受 mtx_ 保护，只在持锁时读写
 };
