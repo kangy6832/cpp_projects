@@ -91,7 +91,9 @@ message(STATUS "kdl_parser library: ${KDL_PARSER_LIBRARY}")
 # ============================================================================
 # src 下含 main() 的 .cpp 各自生成一个可执行文件；
 # 不含 main() 的 .cpp（公共实现 / 未完成文件）只参与编译，汇入 kdl_common 静态库
-file(GLOB ALL_SOURCES CONFIGURE_DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/src/Kinematics/*.cpp)
+file(GLOB ALL_SOURCES CONFIGURE_DEPENDS
+     ${CMAKE_CURRENT_SOURCE_DIR}/src/Kinematics/*.cpp
+     ${CMAKE_CURRENT_SOURCE_DIR}/src/Dynamics/*.cpp)
 
 if(NOT ALL_SOURCES)
     message(FATAL_ERROR "src 目录下没有找到 .cpp 源文件")

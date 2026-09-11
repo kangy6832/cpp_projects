@@ -31,7 +31,7 @@ public:
 
     // 状态查询与关闭
     void close();
-    void closed() const;
+    bool closed() const;
     bool empty() const;
     std::size_t size() const;
     std::size_t capacity() const;

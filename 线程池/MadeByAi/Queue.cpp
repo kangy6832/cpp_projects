@@ -96,10 +96,11 @@ std::optional<Queue::Task> Queue::wait_pop() {
     // 所以这里要先把队列取空，取空之后的下一次 wait_pop 才返回 nullopt。
     // 如果这里写成 `if (closed_) return nullopt;`，
     // close() 时队列里剩下的任务就全丢了。
-    if (tasks_.empty()) return std::nullopt;
+    if (tasks_.empty()) return std::nullopt;  // 队列为空且已关闭，表示"可以下班了"
 
     Task task = std::move(tasks_.front());
     tasks_.pop_front();
+
     lock.unlock();
 
     // 【踩坑·高发】这一句极易遗漏！
