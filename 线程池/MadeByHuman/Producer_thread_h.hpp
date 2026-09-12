@@ -31,7 +31,7 @@ public:
 
 
     bool running() const noexcept { return running_.load(std::memory_order_acquire); }
-    std::uint64_t producted() const noexcept { return produced_.load(std::memory_order_acquire); }
+    std::uint64_t produced() const noexcept { return produced_.load(std::memory_order_acquire); }
     std::uint64_t failed() const noexcept { return failed_.load(std::memory_order_acquire); }
     const std::string& name() const noexcept { return name_; }
 

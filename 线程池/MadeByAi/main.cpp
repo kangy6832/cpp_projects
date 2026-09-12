@@ -80,7 +80,7 @@ int main() {
     //   deque 是分段连续存储，emplace_back 原地构造，
     //   扩容时不需要移动已有元素，因此没有这个要求。
     //   （这也是为什么 deque 常被用来装"不可移动的大对象"）
-    std::deque<Worker_thread> workers;
+    std::deque<Worker_thread> workers;  
     for (int i = 0; i < kWorkerCount; ++i) {
         workers.emplace_back(queue, "worker-" + std::to_string(i));
         workers.back().start();

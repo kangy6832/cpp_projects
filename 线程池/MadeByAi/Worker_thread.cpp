@@ -92,7 +92,7 @@ void Worker_thread::run() {
         // 其他所有正常任务全部陪葬。
         // 拦住之后，一个任务失败只影响它自己，线程池继续服务后续任务。
         try {
-            (*task)();
+            (*task)(); // 执行 task 任务
             executed_.fetch_add(1, std::memory_order_relaxed);
         } catch (...) {
             // 更完善的做法：把异常存进 std::exception_ptr，
