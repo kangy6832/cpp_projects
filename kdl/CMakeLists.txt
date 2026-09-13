@@ -70,6 +70,31 @@ target_link_libraries(kdl_kinematics_lib PUBLIC
 )
 
 # ---------------------------------------------------------------------------
+# 教学库：src/Dynamics 下的逆动力学 / 正动力学 / M-C-G 分解
+# ---------------------------------------------------------------------------
+add_library(kdl_dynamics_lib
+  src/Dynamics/src/kdl_idynamics.cpp
+  src/Dynamics/src/kdl_dynparam.cpp
+  src/Dynamics/src/kdl_fdynamics.cpp
+  src/Dynamics/src/kdl_dynamics_print.cpp
+)
+
+# 除了本模块的 include/，还需要 Kinematics 的 include/：
+# "基座坐标系下的末端外力"必须先做一次正运动学拿到末端姿态，
+# 所以 Dynamics 在链接层面依赖 Kinematics（见 kdl_idynamics.cpp 的注释）。
+target_include_directories(kdl_dynamics_lib PUBLIC
+  $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/src/Dynamics/include>
+  $<INSTALL_INTERFACE:include/kdl_tools>
+  $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/src/Kinematics/include>
+)
+
+target_link_libraries(kdl_dynamics_lib PUBLIC
+  rclcpp::rclcpp
+  orocos-kdl
+  kdl_kinematics_lib
+)
+
+# ---------------------------------------------------------------------------
 # 教学示例可执行文件
 # ---------------------------------------------------------------------------
 add_executable(build_from_urdf example/build_from_urdf.cpp)
@@ -93,10 +118,18 @@ target_compile_definitions(vel_acc_demo PRIVATE
 )
 target_link_libraries(vel_acc_demo PRIVATE kdl_tools_lib kdl_kinematics_lib)
 
+# 动力学示例：逆解、正解、三明治公式拆分、末端外力与 RK4 仿真。
+add_executable(dynamics_demo example/dynamics_demo.cpp)
+target_compile_definitions(dynamics_demo PRIVATE
+  KDL_TOOLS_MODEL_DIR="${CMAKE_CURRENT_SOURCE_DIR}/src/model"
+)
+target_link_libraries(dynamics_demo PRIVATE kdl_tools_lib kdl_dynamics_lib)
+
 # ---------------------------------------------------------------------------
 # 安装
 # ---------------------------------------------------------------------------
-install(TARGETS kdl_tools_lib kdl_kinematics_lib build_from_urdf fk_ik_demo vel_acc_demo
+install(TARGETS kdl_tools_lib kdl_kinematics_lib kdl_dynamics_lib
+        build_from_urdf fk_ik_demo vel_acc_demo dynamics_demo
   ARCHIVE DESTINATION lib
   LIBRARY DESTINATION lib
   RUNTIME DESTINATION lib/${PROJECT_NAME}
@@ -110,13 +143,17 @@ install(DIRECTORY src/Kinematics/include/
   DESTINATION include/kdl_tools
 )
 
+install(DIRECTORY src/Dynamics/include/
+  DESTINATION include/kdl_tools
+)
+
 # 把 URDF / STL 一起装到 share/kdl_tools/model，示例运行时按此路径查找。
 install(DIRECTORY src/model/
   DESTINATION share/${PROJECT_NAME}/model
 )
 
 ament_export_include_directories(include/kdl_tools)
-ament_export_libraries(kdl_tools_lib kdl_kinematics_lib)
+ament_export_libraries(kdl_tools_lib kdl_kinematics_lib kdl_dynamics_lib)
 ament_export_dependencies(rclcpp urdf kdl_parser orocos_kdl_vendor)
 
 ament_package()
