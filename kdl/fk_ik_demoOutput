@@ -1,0 +1,62 @@
+[INFO] [1789203936.473346273] [kdl_tools]: kdl_parser::treeFromUrdfModel succeeded: robotic_arm
+[INFO] [1789203936.473970050] [kdl_tools]: Chain built: base_link -> link6 (6 segments, 6 joints)
+[INFO] [1789203936.477361636] [kdl_tools]: urdf::Model::initFile succeeded: /home/kangy/MyProjects/cpp_projects/kdl/src/model/robotic_arm.urdf
+[ERROR] [1789203936.586794230] [kdl_kinematics]: solveIkNrJl failed: The maximum number of iterations is exceeded
+[ERROR] [1789203936.689453206] [kdl_kinematics]: solveIkNrJl failed: The maximum number of iterations is exceeded
+
+chain: 6 joints, 6 segments
+
+>>> 1) 正运动学 FK：关节角 -> 末端位姿
+[JntArray] 6 joints
+  q = [0.3, -0.4, 0.6, 0.2, -0.3, 0.5]
+[Frame]
+  position = [0.689973, 0.288527, 0.947991]
+  rpy      = [2.44782, 0.613662, -0.298154]
+  rotation =
+    [0.781475, 0.126138, -0.611054]
+    [-0.240158, -0.843087, -0.481173]
+    [-0.575866, 0.522774, -0.628558]
+
+>>> 2) 末端速度雅可比 J(q)
+[Jacobian] 6 x 6
+  [-0.290201, -0.811146, 0.368392, -0.114303, 0.0543598, 0]
+  [0.68991, -0.250917, 0.113957, -0.0353579, -0.0957619, 0]
+  [0, 0.739202, -0.551401, 0.135856, 0.0204616, 0]
+  [0, 0.29552, -0.29552, 0.29552, 0.625335, -0.611054]
+  [0, -0.955336, 0.955336, -0.955336, 0.193439, -0.481173]
+  [1, -5.55112e-17, -1.20272e-15, -5.43062e-16, -0.756001, -0.628558]
+  (前 3 行 = 线速度 v，后 3 行 = 角速度 ω；基座坐标系，参考点在末端)
+
+>>> 3) IK - ChainIkSolverPos_LMA（初值全零）
+[IkResult] SUCCESS  error_code = 0, message = "No error"
+[JntArray] 6 joints
+  q = [0.300021, -0.399918, 0.599954, 0.199313, -0.299852, 0.500237]
+  FK 复核: 位置误差 = 5.37095e-06 m, 姿态误差 = 0.000552408 rad
+
+>>> 4) IK - ChainIkSolverPos_NR_JL（初值全零，带 URDF 关节限位）
+  关节限位(来自 URDF):
+[JntArray] 6 joints
+  q = [-3.14, -1.57, -2.8, -1.82, -0.4, -3.14]
+[JntArray] 6 joints
+  q = [3.14, 1.57, 2.8, 1.92, 0.4, 3.14]
+[IkResult] FAILED  error_code = -5, message = "The maximum number of iterations is exceeded"
+[JntArray] 6 joints
+  q = [3.14, 1.05511, 0.817849, 0.602081, 0.156291, 3.14]
+  (求解未成功，跳过 FK 复核)
+  说明：NR_JL 每步直接 q += pinv(J)·误差，没有步长控制。
+        初值离目标太远时，第一步增量就大到被限位截断，卡在边界上出不来。
+
+>>> 5) NR_JL 的初值敏感性（初值 = 目标角 × scale）
+  scale = 0.2 -> 未收敛 (error_code = -5)
+  scale = 0.4 -> 收敛 (error_code = 0), FK 位置误差 = 1.10279e-07 m
+  scale = 0.6 -> 收敛 (error_code = 0), FK 位置误差 = 1.61523e-09 m
+  scale = 0.8 -> 收敛 (error_code = 0), FK 位置误差 = 4.35068e-10 m
+
+>>> 6) 两种求解器对比（同一目标）
+  LMA   (初值全零)      : 收敛, 位置误差 = 5.37095e-06 m
+  NR_JL (初值全零)      : 未收敛, 位置误差 = -1 m
+  NR_JL (初值接近目标)  : 收敛, 位置误差 = 4.35068e-10 m
+
+  结论：LMA 鲁棒，不需要初值足够接近，适合冷启动；
+        NR_JL 轻量，但需要给一个足够接近的初值（例如上一周期的解）。
+        两者解出的关节角可能不同，但末端位姿都吻合同一个目标。

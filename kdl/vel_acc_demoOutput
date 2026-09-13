@@ -1,0 +1,82 @@
+[INFO] [1789261063.772034130] [kdl_tools]: kdl_parser::treeFromUrdfModel succeeded: robotic_arm
+[INFO] [1789261063.772389638] [kdl_tools]: Chain built: base_link -> link6 (6 segments, 6 joints)
+
+chain: 6 joints, 6 segments
+
+输入:
+  q     (rad)    [JntArray] 6 joints
+  q = [0.3, -0.4, 0.6, 0.2, -0.3, 0.5]
+  qdot  (rad/s)  [JntArray] 6 joints
+  q = [0.1, -0.2, 0.3, 0, 0.15, -0.25]
+  qddot (rad/s²) [JntArray] 6 joints
+  q = [0.5, 0.4, -0.3, 0.2, -0.1, 0.1]
+
+>>> 1) 关节速度 -> 末端速度: twist = J(q)·qdot
+[Twist]
+  linear  = [0.251881, 0.138997, -0.310192]
+  angular = [0.0988036, 0.626977, 0.143739]
+  (linear: m/s, angular: rad/s)
+
+>>> 2) 末端速度 -> 关节速度（两种求逆对比）
+[VelocityResult] SUCCESS  error_code = 0, message = "No error"
+  sigma_min = 0.122346  (越接近 0 越接近奇异位形)
+[JntArray] 6 joints
+  q = [0.1, -0.2, 0.3, -1.66533e-16, 0.15, -0.25]
+  与 qdot 的往返偏差(应≈0): 2.77556e-16
+[VelocityResult] SUCCESS  error_code = 0, message = "No error"
+  sigma_min = 0.122346  (越接近 0 越接近奇异位形)
+[JntArray] 6 joints
+  q = [0.1, -0.2, 0.3, -1.66533e-16, 0.15, -0.25]
+  与 qdot 的往返偏差(应≈0): 2.77556e-16
+  说明：位形不奇异时，两种求逆都能精确还原 qdot。
+
+>>> 3) J̇·q̇（科氏/离心项，单位 m/s² 与 rad/s²）
+[Twist]
+  linear  = [-0.158378, 0.0100151, -0.120071]
+  angular = [-0.023604, -0.0157198, -0.132987]
+
+>>> 4) 关节加速度 -> 末端加速度: a = J·q̈ + J̇·q̇
+[Twist]
+  linear  = [-0.766751, 0.222921, 0.366156]
+  angular = [0.118725, -0.942984, 0.379758]
+  (linear: m/s², angular: rad/s²)
+  其中 J·q̈ 这一项 = a − J̇·q̇：
+[Twist]
+  linear  = [-0.608373, 0.212906, 0.486226]
+  angular = [0.142329, -0.927264, 0.512744]
+
+>>> 5) 末端加速度 -> 关节加速度（两种求逆对比）
+[AccelerationResult] SUCCESS  error_code = 0, message = "No error"
+  sigma_min = 0.122346  (越接近 0 越接近奇异位形)
+[JntArray] 6 joints
+  q = [0.5, 0.4, -0.3, 0.2, -0.1, 0.1]
+  与 qddot 的往返偏差(应≈0): 6.10623e-16
+[AccelerationResult] SUCCESS  error_code = 0, message = "No error"
+  sigma_min = 0.122346  (越接近 0 越接近奇异位形)
+[JntArray] 6 joints
+  q = [0.5, 0.4, -0.3, 0.2, -0.1, 0.1]
+  与 qddot 的往返偏差(应≈0): 6.10623e-16
+
+>>> 6) 奇异位形对比
+  σ_min(工作位形) = 0.122346
+  σ_min(全零位形) = 0.00108034
+  => 全零位形的 σ_min 小得多，更接近奇异。
+
+  探针速度（沿最难运动的方向，幅值 0.1）:
+[Twist]
+  linear  = [2.71041e-05, 0.0993402, -0.00279125]
+  angular = [0.0111009, -3.85722e-05, -0.000712146]
+
+  同一个末端速度，三种求法得到的最大关节速度:
+    pinv                         : 65.1136 rad/s
+    wdls (singular_eps = 1e-5)   : 65.1136 rad/s   <- 与 pinv 相同
+    wdls (singular_eps = 1e-2)   : 0.0307427 rad/s
+
+  结论：
+    1) σ_min 越小越接近奇异。纯伪逆会把末端速度放大约 1/σ_min 倍，
+       得到物理上无法执行的关节速度。
+    2) KDL 的 wdls 只在自判奇异（σ_min < eps）时才施加阻尼，而其原生
+       默认 eps = 1e-5 过于严格，此时它与 pinv 结果完全相同，
+       看起来像阻尼失效了，其实是根本没被触发。
+    3) 把 singular_eps 放宽到与机器人尺度匹配后，阻尼才真正起作用，
+       关节速度回到可执行范围。
