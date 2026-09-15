@@ -16,6 +16,9 @@
   <depend>orocos_kdl_vendor</depend>
   <!-- urdf::Model::initFile/initString 依赖 urdf_parser_plugin 插件在运行时被加载 -->
   <exec_depend>urdf_parser_plugin</exec_depend>
+  <!-- 画图脚本 plot_quintic.py 只用 numpy 读 CSV、matplotlib 出图 -->
+  <exec_depend>python3-numpy</exec_depend>
+  <exec_depend>python3-matplotlib</exec_depend>
 
   <test_depend>ament_lint_auto</test_depend>
   <test_depend>ament_lint_common</test_depend>

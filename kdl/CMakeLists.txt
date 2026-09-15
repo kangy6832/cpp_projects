@@ -95,6 +95,26 @@ target_link_libraries(kdl_dynamics_lib PUBLIC
 )
 
 # ---------------------------------------------------------------------------
+# 教学库：src/Interpolation 下的关节空间五次多项式插值
+# ---------------------------------------------------------------------------
+add_library(kdl_interpolation_lib
+  src/Interpolation/src/kdl_quintic.cpp
+  src/Interpolation/src/kdl_interpolation_print.cpp
+)
+
+target_include_directories(kdl_interpolation_lib PUBLIC
+  $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/src/Interpolation/include>
+  $<INSTALL_INTERFACE:include/kdl_tools>
+)
+
+# 插值是纯关节空间的事，与 URDF、正逆运动学、动力学都无关：
+# 它只吃"路点数组 + 段时长"，所以这里只依赖 KDL 本身。
+target_link_libraries(kdl_interpolation_lib PUBLIC
+  rclcpp::rclcpp
+  orocos-kdl
+)
+
+# ---------------------------------------------------------------------------
 # 教学示例可执行文件
 # ---------------------------------------------------------------------------
 add_executable(build_from_urdf example/build_from_urdf.cpp)
@@ -125,11 +145,16 @@ target_compile_definitions(dynamics_demo PRIVATE
 )
 target_link_libraries(dynamics_demo PRIVATE kdl_tools_lib kdl_dynamics_lib)
 
+# 五次插值示例：单段系数、多段 C⁴ 拼接、约束校验与 CSV 导出。
+# 刻意不定义 KDL_TOOLS_MODEL_DIR：插值只吃关节数组，不需要机器人模型。
+add_executable(quintic_demo example/quintic_demo.cpp)
+target_link_libraries(quintic_demo PRIVATE kdl_interpolation_lib)
+
 # ---------------------------------------------------------------------------
 # 安装
 # ---------------------------------------------------------------------------
-install(TARGETS kdl_tools_lib kdl_kinematics_lib kdl_dynamics_lib
-        build_from_urdf fk_ik_demo vel_acc_demo dynamics_demo
+install(TARGETS kdl_tools_lib kdl_kinematics_lib kdl_dynamics_lib kdl_interpolation_lib
+        build_from_urdf fk_ik_demo vel_acc_demo dynamics_demo quintic_demo
   ARCHIVE DESTINATION lib
   LIBRARY DESTINATION lib
   RUNTIME DESTINATION lib/${PROJECT_NAME}
@@ -147,13 +172,29 @@ install(DIRECTORY src/Dynamics/include/
   DESTINATION include/kdl_tools
 )
 
+install(DIRECTORY src/Interpolation/include/
+  DESTINATION include/kdl_tools
+)
+
 # 把 URDF / STL 一起装到 share/kdl_tools/model，示例运行时按此路径查找。
 install(DIRECTORY src/model/
   DESTINATION share/${PROJECT_NAME}/model
 )
 
+# ---------------------------------------------------------------------------
+# 画图脚本：读 quintic_demo 导出的 CSV 画曲线
+# ---------------------------------------------------------------------------
+# 必须 RENAME 成不带扩展名的 plot_quintic：
+# `ros2 run` 在 Linux 下要求 lib/<pkg>/ 里的文件名与命令名**完全一致**，
+# 没有 .py 的回退（见 ros2run/api/__init__.py 的 get_executable_path）。
+# install(PROGRAMS) 会顺手加上可执行权限，脚本里的 shebang 负责选解释器。
+install(PROGRAMS src/Interpolation/scripts/plot_quintic.py
+  RENAME plot_quintic
+  DESTINATION lib/${PROJECT_NAME}
+)
+
 ament_export_include_directories(include/kdl_tools)
-ament_export_libraries(kdl_tools_lib kdl_kinematics_lib kdl_dynamics_lib)
+ament_export_libraries(kdl_tools_lib kdl_kinematics_lib kdl_dynamics_lib kdl_interpolation_lib)
 ament_export_dependencies(rclcpp urdf kdl_parser orocos_kdl_vendor)
 
 ament_package()
