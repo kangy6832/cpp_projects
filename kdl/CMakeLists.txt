@@ -95,11 +95,15 @@ target_link_libraries(kdl_dynamics_lib PUBLIC
 )
 
 # ---------------------------------------------------------------------------
-# 教学库：src/Interpolation 下的关节空间五次多项式插值
+# 教学库：src/Interpolation 下的插值
+#   关节空间：五次多项式（kdl_quintic）
+#   笛卡尔空间：位置五次多项式 + 姿态 slerp（kdl_cartesian）
 # ---------------------------------------------------------------------------
 add_library(kdl_interpolation_lib
   src/Interpolation/src/kdl_quintic.cpp
   src/Interpolation/src/kdl_interpolation_print.cpp
+  src/Interpolation/src/kdl_cartesian.cpp
+  src/Interpolation/src/kdl_cartesian_print.cpp
 )
 
 target_include_directories(kdl_interpolation_lib PUBLIC
@@ -107,8 +111,10 @@ target_include_directories(kdl_interpolation_lib PUBLIC
   $<INSTALL_INTERFACE:include/kdl_tools>
 )
 
-# 插值是纯关节空间的事，与 URDF、正逆运动学、动力学都无关：
-# 它只吃"路点数组 + 段时长"，所以这里只依赖 KDL 本身。
+# 插值只吃"路点 + 段时长"，与 URDF、正逆运动学、动力学都无关：
+# 关节空间给的是关节角数组，笛卡尔空间给的是 KDL::Frame 数组，两者都只依赖
+# KDL 本身（kdl_cartesian 内部转调 kdl_quintic 的多段求解器，同属本模块，
+# 不新增任何依赖）。
 target_link_libraries(kdl_interpolation_lib PUBLIC
   rclcpp::rclcpp
   orocos-kdl
@@ -150,11 +156,16 @@ target_link_libraries(dynamics_demo PRIVATE kdl_tools_lib kdl_dynamics_lib)
 add_executable(quintic_demo example/quintic_demo.cpp)
 target_link_libraries(quintic_demo PRIVATE kdl_interpolation_lib)
 
+# 笛卡尔插值示例：位置五次多项式 + 姿态 slerp、多段两种路点行为、限位校验与 CSV。
+# 同样不定义 KDL_TOOLS_MODEL_DIR：笛卡尔插值只吃位姿数组，不需要机器人模型。
+add_executable(cartesian_demo example/cartesian_demo.cpp)
+target_link_libraries(cartesian_demo PRIVATE kdl_interpolation_lib)
+
 # ---------------------------------------------------------------------------
 # 安装
 # ---------------------------------------------------------------------------
 install(TARGETS kdl_tools_lib kdl_kinematics_lib kdl_dynamics_lib kdl_interpolation_lib
-        build_from_urdf fk_ik_demo vel_acc_demo dynamics_demo quintic_demo
+        build_from_urdf fk_ik_demo vel_acc_demo dynamics_demo quintic_demo cartesian_demo
   ARCHIVE DESTINATION lib
   LIBRARY DESTINATION lib
   RUNTIME DESTINATION lib/${PROJECT_NAME}
@@ -190,6 +201,12 @@ install(DIRECTORY src/model/
 # install(PROGRAMS) 会顺手加上可执行权限，脚本里的 shebang 负责选解释器。
 install(PROGRAMS src/Interpolation/scripts/plot_quintic.py
   RENAME plot_quintic
+  DESTINATION lib/${PROJECT_NAME}
+)
+
+# 笛卡尔插值的画图脚本同理：读 cartesian_demo 导出的 CSV，出总览 + 分张 PNG。
+install(PROGRAMS src/Interpolation/scripts/plot_cartesian.py
+  RENAME plot_cartesian
   DESTINATION lib/${PROJECT_NAME}
 )
 
